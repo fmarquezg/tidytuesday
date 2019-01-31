@@ -1,0 +1,49 @@
+---
+title: ""
+author: "Francisco Marquez"
+date: "1/30/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidyverse)
+
+milk_products_facts<-
+  read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-01-29/milk_products_facts.csv')
+```
+
+```{r}
+
+#milk_products_tidied<-
+  
+milk_products_facts%>%
+  gather(product, lbs_per_person, -year)%>%
+  separate(product, c('category','product'), sep='_',
+            extra='merge',fill='right')%>%
+  mutate(product=coalesce(product,category),
+         product=str_to_title(str_replace_all(product,'_',' ')),
+         category=str_to_title(category),
+         product=ifelse(product=='Other',paste(product,category), product)
+  )
+  
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
