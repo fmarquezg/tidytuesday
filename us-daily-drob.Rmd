@@ -92,6 +92,7 @@ milk_product_ts %>%
   labs(x = "Year",
        y = "Avearge US consumption (lbs per person)",
        title = "Forecasted consumption of dairy consumption",
+       subtitle = "Based on USDA data 1975-2017. Showing 80% prediction intervals.",
        color = "Model")
 ```
 
