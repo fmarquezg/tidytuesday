@@ -3,6 +3,8 @@ title: ""
 author: "Francisco Marquez"
 date: "1/30/2019"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
@@ -21,18 +23,77 @@ milk_products_facts<-
 
 #milk_products_tidied<-
   
-milk_products_facts%>%
+milk_products_tidied<-milk_products_facts%>%
   gather(product, lbs_per_person, -year)%>%
   separate(product, c('category','product'), sep='_',
             extra='merge',fill='right')%>%
   mutate(product=coalesce(product,category),
          product=str_to_title(str_replace_all(product,'_',' ')),
          category=str_to_title(category),
-         product=ifelse(product=='Other',paste(product,category), product)
-  )
-  
-```
+         product=ifelse(product=='Other',paste(product,category), product))
 
+milk_products_tidied%>%
+  ggplot(aes(year,lbs_per_person)) +
+  geom_line() +
+  facet_wrap(~product, scales = 'free') + 
+  expand_limits(y = 0)
+  
+milk_products_tidied %>%
+  group_by(category,year)%>%
+  summarize(lbs_per_person = sum(lbs_per_person)) %>%
+  ggplot(aes(year,lbs_per_person, color=category)) +
+  geom_line() +
+  labs(title = "Dairy consumption by category",
+       subtitle = "Based on US consumption (source: USDA)",
+       x= "Year",
+       y="Lbs per person")
+
+```
+```{r}
+library(sweep)
+library(timetk)
+library(lubridate)
+library(broom)
+library(forecast)
+#https://business-science.github.io/sweep/
+
+milk_product_ts <- milk_products_tidied %>%
+  mutate(year = as.Date("0001-01-01") + years(year - 1)) %>%
+  nest(-category, -product) %>%
+  mutate(ts = map(data, tk_ts, start = 1975, freq =1 ))
+
+milk_product_ets <- milk_product_ts %>%
+  mutate(model = map(ts, ets))
+
+milk_product_ets %>%
+  unnest(map(model, sw_glance))
+
+milk_product_ets %>%
+  unnest(map(model,sw_augment)) %>%
+  ggplot(aes(index, .actual)) + 
+  geom_line() +
+  geom_line(aes(y = .fitted), color = "blue") +
+  facet_wrap(~ product, scales = "free_y" ) +
+  expand_limits(y = 0 )
+
+# Play with different Models
+milk_product_ts %>%
+  crossing(model_name = c("auto.arima", "ets")) %>%
+  mutate(model = map2(model_name, ts, ~ invoke(.x, list(.y))),
+         forecast = map(model,forecast, h =10 )) %>%
+  unnest(map(forecast, sw_sweep)) %>%
+  ggplot(aes(index, lbs_per_person, color = model_name, lty = key)) + 
+  geom_line() +
+  geom_ribbon(aes(ymin = lo.80, ymax = hi.80), alpha = .5) +
+  facet_wrap(~ product, scales = "free_y" ) +
+  expand_limits(y = 0 ) +
+  scale_x_continuous(breaks = c(1980, 2000, 2020)) + 
+  scale_linetype_discrete(guide = FALSE) + 
+  labs(x = "Year",
+       y = "Avearge US consumption (lbs per person)",
+       title = "Forecasted consumption of dairy consumption",
+       color = "Model")
+```
 
 
 
