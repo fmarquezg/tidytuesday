@@ -1,0 +1,18 @@
+---
+title: "Statistical Rethinking"
+author: "Francisco Marquez"
+date: "2/2/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+## R Markdown
+
+
+```{r cars}
+summary(cars)
+```

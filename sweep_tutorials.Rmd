@@ -1,0 +1,88 @@
+---
+title: "SWEEP"
+author: "Francisco Marquez"
+date: "1/31/2019"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+Exploring 
+https://business-science.github.io/sweep/
+
+```{r echo=FALSE}
+library(tidyverse)
+library(sweep)
+library(forecast)
+library(timetk)
+```
+
+```{r}
+library(tidyquant)
+
+
+alcohol_sales_tbl <- tq_get("S4248SM144NCEN", 
+                            get  = "economic.data", 
+                            from = "2007-01-01",
+                            to   = "2016-12-31")
+
+alcohol_sales_tbl
+
+alcohol_sales_tbl %>%
+  ggplot(aes(x = date, y = price )) +
+  geom_line(size = 1, color = palette_light()[[1]]) +
+  geom_smooth(method = "loess") +
+  labs(title = "US Alcohol Sales: Monthly ",
+       x = "",
+       y = "Millions") +
+  scale_y_continuous(labels = scales::dollar) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  theme_tq()
+
+alcohol_sales_ts <- tk_ts(alcohol_sales_tbl, start = 2007, freq = 12, silent = TRUE)
+alcohol_sales_ts
+
+
+fit_ets <- alcohol_sales_ts %>%
+  ets()
+
+augment_fit_ets <- sw_augment(fit_ets)
+
+augment_fit_ets %>%
+  ggplot(aes(x = index, y = .resid)) +
+  geom_hline(yintercept = 0, color = "grey40") +
+  geom_point(color = palette_light()[[1]], alpha = .5) +
+  geom_smooth(method = "loess") +
+  scale_x_yearmon(n = 10) +
+  labs(title = "US Alcohol Sales: ETS Residuals", x = "") +
+  theme_tq()
+```
+
+Forecasts
+
+```{r}
+fcast_ets <- fit_ets %>%
+  forecast(h = 12)
+
+sw_sweep(fcast_ets, fitted = TRUE)
+
+sw_sweep(fcast_ets) %>%
+    ggplot(aes(x = index, y = price, color = key)) +
+    geom_ribbon(aes(ymin = lo.95, ymax = hi.95), 
+                fill = "#D5DBFF", color = NA, size = 0) +
+    geom_ribbon(aes(ymin = lo.80, ymax = hi.80, fill = key), 
+                fill = "#596DD5", color = NA, size = 0, alpha = 0.8) +
+    geom_line(size = 1) +
+    labs(title = "US Alcohol Sales, ETS Model Forecast", x = "", y = "Millions",
+         subtitle = "Regular Time Index") +
+    scale_y_continuous(labels = scales::dollar) +
+    scale_x_yearmon(n = 12, format = "%Y") +
+    scale_color_tq() +
+    scale_fill_tq() +
+    theme_tq() 
+```

@@ -1,0 +1,96 @@
+---
+title: "Untitled"
+author: "Francisco Marquez"
+date: "2/4/2019"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lubridate)
+```
+
+## R Markdown
+```{r}
+library(zoo)
+library(corrr)
+library(tidyquant)
+state_hpi <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-02-05/state_hpi.csv")
+#SOURCE: https://www.business-science.io/timeseries-analysis/2017/07/30/tidy-timeseries-analysis-pt-3.html
+#Simple Plot
+state_hpi%>%
+  mutate(pi_avg = price_index/us_avg -1 ,
+         date = as.yearmon(paste(year,month), "%Y %m"),
+         p_pi_avg= lag(pi_avg))%>%
+  filter(state %in% c('TX','CA') & year>2017)%>%
+  ggplot(aes(x=date, y = price_index, color = state)) + geom_point() #+
+  scale_y_continuous(labels = scales::percent)
+  
+
+# Static Correlation
+us_pi<-state_hpi%>%mutate(pi_avg = price_index/us_avg -1 ,
+         date = as.yearmon(paste(year,month), "%Y %m"))%>%
+  select(date,us_avg)%>%unique()
+
+  
+pi_correlations<-state_hpi%>%mutate(pi_avg = price_index/us_avg -1 ,
+         date = as.yearmon(paste(year,month), "%Y %m"))%>%
+  select(date,state,price_index)%>%
+  left_join(us_pi, by = "date") %>%
+  spread(key = state, value = price_index)%>%
+  select(-date)%>%
+  # Correlation and formatting
+  correlate()
+
+pi_correlations %>%
+  network_plot(colours = c(palette_light()[[2]], "white", palette_light()[[4]]), legend = TRUE) +
+  labs( title = "Correlations of State Price Index",
+        subtitle = "Data Range: 1975 - 2018") + 
+    theme_tq() +
+    theme(legend.position = "bottom")
+
+# "MI", "NV", "DC", "ND", "TX", "CA"
+
+
+## Rolling Correlations
+pi_rolling_corr <- state_hpi%>%mutate(pi_avg = price_index/us_avg -1 ,
+         date = as.yearmon(paste(year,month), "%Y %m"))%>%
+  select(date,state,price_index)%>%
+  left_join(us_pi, by = "date") %>%
+  tq_mutate_xy(
+    x = price_index,
+    y = us_avg,
+    mutate_fun = runCor, 
+    # runCor args
+    n          = 30,
+    use        = "pairwise.complete.obs",
+    # tq_mutate args
+    col_rename = "rolling_corr"
+  )
+
+pi_correlations <- pi_correlations %>%
+  select(rowname, us_avg)%>%
+  rename(state = rowname)
+
+pi_rolling_corr<-pi_rolling_corr %>%
+  left_join(pi_correlations, by = "state") %>%
+  rename(static_corr = us_avg.y,
+         us_avg = us_avg.x)
+
+pi_rolling_corr %>%filter(state %in% c("MI", "NV", "DC", "ND", "TX", "CA"))%>%
+  ggplot(aes(x = date, color = state)) +
+  #Data
+  geom_line(aes(y = static_corr), color = "red") +
+  geom_point(aes(y = rolling_corr), alpha = 0.5) + 
+  facet_wrap(~state, ncol = 3, scales = "free_y") +
+  scale_color_tq() +
+  labs( title = "30 Month State Correlation vs National Avg",
+        subtitle = "Relationships are dynamic vs static correlation",
+        x = "", y = "Correlation") +
+  theme_tq() +
+  theme(legend.position = "none")
+
+```
